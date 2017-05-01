@@ -203,6 +203,7 @@ import org.apache.geode.internal.cache.DestroyPartitionedRegionMessage;
 import org.apache.geode.internal.cache.DestroyRegionOperation;
 import org.apache.geode.internal.cache.DistTXPrecommitMessage;
 import org.apache.geode.internal.cache.DistTXCommitMessage;
+import org.apache.geode.internal.cache.DistTXPrecommitMessage.DistTxPreCommitResponse;
 import org.apache.geode.internal.cache.DistTXRollbackMessage;
 import org.apache.geode.internal.cache.DistributedClearOperation.ClearRegionMessage;
 import org.apache.geode.internal.cache.DistributedClearOperation.ClearRegionWithContextMessage;
@@ -390,7 +391,6 @@ import org.apache.geode.internal.cache.versions.VMVersionTag;
 import org.apache.geode.internal.cache.wan.GatewaySenderAdvisor;
 import org.apache.geode.internal.cache.wan.GatewaySenderEventCallbackArgument;
 import org.apache.geode.internal.cache.wan.GatewaySenderEventImpl;
-import org.apache.geode.internal.cache.wan.parallel.WaitUntilParallelGatewaySenderFlushedCoordinator;
 import org.apache.geode.internal.cache.wan.parallel.ParallelQueueBatchRemovalMessage;
 import org.apache.geode.internal.cache.wan.parallel.ParallelQueueBatchRemovalMessage.BatchRemovalReplyMessage;
 import org.apache.geode.internal.cache.wan.parallel.ParallelQueueRemovalMessage;
@@ -913,8 +913,7 @@ public final class DSFIDFactory implements DataSerializableFixedID {
     registerDSFID(PR_QUERY_TRACE_INFO, PRQueryTraceInfo.class);
     registerDSFID(INDEX_CREATION_DATA, IndexCreationData.class);
     registerDSFID(DIST_TX_OP, DistTxEntryEvent.class);
-    registerDSFID(DIST_TX_PRE_COMMIT_RESPONSE,
-        DistTXPrecommitMessage.DistTxPrecommitResponse.class);
+    registerDSFID(DIST_TX_PRE_COMMIT_RESPONSE, DistTxPreCommitResponse.class);
     registerDSFID(DIST_TX_THIN_ENTRY_STATE, TXEntryState.DistTxThinEntryState.class);
     registerDSFID(SERVER_PING_MESSAGE, ServerPingMessage.class);
     registerDSFID(PR_DESTROY_ON_DATA_STORE_MESSAGE, DestroyRegionOnDataStoreMessage.class);

@@ -15,10 +15,8 @@
 package org.apache.geode.internal.cache;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.Map.Entry;
@@ -32,10 +30,9 @@ import org.apache.geode.cache.UnsupportedOperationInTransactionException;
 import org.apache.geode.distributed.DistributedMember;
 import org.apache.geode.distributed.internal.DM;
 import org.apache.geode.distributed.internal.membership.InternalDistributedMember;
-import org.apache.geode.internal.cache.DistTXPrecommitMessage.DistTxPrecommitResponse;
-import org.apache.geode.internal.cache.DistributedPutAllOperation.PutAllEntryData;
-import org.apache.geode.internal.cache.DistributedRemoveAllOperation.RemoveAllEntryData;
+import org.apache.geode.internal.cache.DistTXPrecommitMessage.DistTxPreCommitResponse;
 import org.apache.geode.internal.cache.TXEntryState.DistTxThinEntryState;
+import org.apache.geode.internal.cache.partitioned.Bucket;
 import org.apache.geode.internal.cache.tier.sockets.VersionedObjectList;
 import org.apache.geode.internal.cache.tx.DistClientTXStateStub;
 import org.apache.geode.internal.cache.tx.DistTxEntryEvent;
@@ -50,8 +47,11 @@ public class DistTXStateProxyImplOnCoordinator extends DistTXStateProxyImpl {
    */
   protected HashMap<DistributedMember, DistTXCoordinatorInterface> target2realDeals =
       new HashMap<>();
+
   private HashMap<LocalRegion, DistributedMember> rrTargets;
+
   private Set<DistributedMember> txRemoteParticpants = null; // other than local
+
   protected HashMap<String, ArrayList<DistTxThinEntryState>> txEntryEventMap = null;
 
   public DistTXStateProxyImplOnCoordinator(TXManagerImpl managerImpl, TXId id,
@@ -132,8 +132,7 @@ public class DistTXStateProxyImplOnCoordinator extends DistTXStateProxyImpl {
    * those
    */
   private HashMap<DistributedMember, DistTXCoordinatorInterface> getSecondariesAndReplicasForTxOps() {
-    final GemFireCacheImpl cache =
-        GemFireCacheImpl.getExisting("getSecondariesAndReplicasForTxOps");
+    final InternalCache cache = GemFireCacheImpl.getExisting("getSecondariesAndReplicasForTxOps");
     InternalDistributedMember currentNode =
         cache.getInternalDistributedSystem().getDistributedMember();
 
@@ -143,7 +142,7 @@ public class DistTXStateProxyImplOnCoordinator extends DistTXStateProxyImpl {
       DistributedMember originalTarget = e.getKey();
       DistTXCoordinatorInterface distPeerTxStateStub = e.getValue();
 
-      ArrayList<DistTxEntryEvent> primaryTxOps =
+      Iterable<DistTxEntryEvent> primaryTxOps =
           distPeerTxStateStub.getPrimaryTransactionalOperations();
       for (DistTxEntryEvent dtop : primaryTxOps) {
         LocalRegion lr = dtop.getRegion();
@@ -155,8 +154,8 @@ public class DistTXStateProxyImplOnCoordinator extends DistTXStateProxyImpl {
           allNodes.remove(originalTarget);
           otherNodes = allNodes;
         } else if (lr instanceof DistributedRegion) {
-          otherNodes =
-              ((DistributedRegion) lr).getCacheDistributionAdvisor().adviseInitializedReplicates();
+          otherNodes = ((CacheDistributionAdvisee) lr).getCacheDistributionAdvisor()
+              .adviseInitializedReplicates();
           otherNodes.remove(originalTarget);
         }
 
@@ -196,7 +195,7 @@ public class DistTXStateProxyImplOnCoordinator extends DistTXStateProxyImpl {
     }
 
     boolean finalResult = false;
-    final GemFireCacheImpl cache = GemFireCacheImpl.getExisting("Applying Dist TX Rollback");
+    final InternalCache cache = GemFireCacheImpl.getExisting("Applying Dist TX Rollback");
     final DM dm = cache.getDistributionManager();
     try {
       // Create Tx Participants
@@ -319,7 +318,7 @@ public class DistTXStateProxyImplOnCoordinator extends DistTXStateProxyImpl {
       if (r instanceof PartitionedRegion) {
         target = getOwnerForKey(r, key);
       } else if (r instanceof BucketRegion) {
-        target = ((BucketRegion) r).getBucketAdvisor().getPrimary();
+        target = ((Bucket) r).getBucketAdvisor().getPrimary();
         // target = r.getMyId();
       } else { // replicated region
         target = getRRTarget(key, r);
@@ -390,7 +389,7 @@ public class DistTXStateProxyImplOnCoordinator extends DistTXStateProxyImpl {
         throw new UnsupportedOperationInTransactionException(LocalizedStrings.DISTTX_TX_EXPECTED
             .toLocalizedString("DistPeerTXStateStub", this.realDeal.getClass().getSimpleName()));
       }
-      target2realDeals.put(target, (DistPeerTXStateStub) realDeal);
+      target2realDeals.put(target, (DistTXCoordinatorInterface) realDeal);
       if (logger.isDebugEnabled()) {
         logger.debug(
             "DistTXStateProxyImplOnCoordinator.getRealDeal(t) added TxState target2realDeals = "
@@ -438,7 +437,7 @@ public class DistTXStateProxyImplOnCoordinator extends DistTXStateProxyImpl {
 
   private boolean doPrecommit() {
     boolean finalResult = true;
-    final GemFireCacheImpl cache = GemFireCacheImpl.getExisting("Applying Dist TX Precommit");
+    final InternalCache cache = GemFireCacheImpl.getExisting("Applying Dist TX Precommit");
     final DM dm = cache.getDistributionManager();
 
     // Create Tx Participants
@@ -468,7 +467,7 @@ public class DistTXStateProxyImplOnCoordinator extends DistTXStateProxyImpl {
         } else if (lr instanceof PartitionedRegion || lr instanceof BucketRegion) {
           final PartitionedRegion pr;
           if (lr instanceof BucketRegion) {
-            pr = ((BucketRegion) lr).getPartitionedRegion();
+            pr = ((Bucket) lr).getPartitionedRegion();
           } else {
             pr = (PartitionedRegion) lr;
           }
@@ -528,8 +527,8 @@ public class DistTXStateProxyImplOnCoordinator extends DistTXStateProxyImpl {
           new TreeMap<String, ArrayList<DistTxThinEntryState>>();
       ArrayList<ArrayList<DistTxThinEntryState>> entryEventList = null;
       if (localResult) {
-        localResult = ((DistTXStateOnCoordinator) localTXState)
-            .populateDistTxEntryStateList(entryStateSortedMap);
+        localResult =
+            ((DistTXState) localTXState).populateDistTxEntryStateList(entryStateSortedMap);
         if (localResult) {
           entryEventList =
               new ArrayList<ArrayList<DistTxThinEntryState>>(entryStateSortedMap.values());
@@ -572,11 +571,11 @@ public class DistTXStateProxyImplOnCoordinator extends DistTXStateProxyImpl {
       // [DISTTX} TODO Handle stats
       // dm.getStats().incCommitWaits();
 
-      Map<DistributedMember, DistTxPrecommitResponse> remoteResults =
+      Map<DistributedMember, DistTxPreCommitResponse> remoteResults =
           processor.getCommitResponseMap();
-      for (Entry<DistributedMember, DistTxPrecommitResponse> e : remoteResults.entrySet()) {
+      for (Entry<DistributedMember, DistTxPreCommitResponse> e : remoteResults.entrySet()) {
         DistributedMember target = e.getKey();
-        DistTxPrecommitResponse remoteResponse = e.getValue();
+        DistTxPreCommitResponse remoteResponse = e.getValue();
         ArrayList<ArrayList<DistTxThinEntryState>> entryEventList =
             remoteResponse.getDistTxEntryEventList();
         populateEntryEventMap(target, entryEventList, sortedRegionName);
@@ -665,7 +664,7 @@ public class DistTXStateProxyImplOnCoordinator extends DistTXStateProxyImpl {
    */
   private boolean doCommit() {
     boolean finalResult = true;
-    final GemFireCacheImpl cache = GemFireCacheImpl.getExisting("Applying Dist TX Commit");
+    final InternalCache cache = GemFireCacheImpl.getExisting("Applying Dist TX Commit");
     final DM dm = cache.getDistributionManager();
 
     // Create Tx Participants
@@ -716,7 +715,7 @@ public class DistTXStateProxyImplOnCoordinator extends DistTXStateProxyImpl {
                 localTXState.getClass().getSimpleName()));
       }
       populateEntryEventList(dm.getId(), entryEventList, sortedRegionName);
-      ((DistTXStateOnCoordinator) localTXState).setDistTxEntryStates(entryEventList);
+      ((DistTXState) localTXState).setDistTxEntryStates(entryEventList);
       localTXState.commit();
       TXCommitMessage localResultMsg = localTXState.getCommitMessage();
       if (logger.isDebugEnabled()) {
@@ -821,7 +820,7 @@ public class DistTXStateProxyImplOnCoordinator extends DistTXStateProxyImpl {
         Object key = putallOp.putAllData[i].key;
         int bucketId = putallOp.putAllData[i].getBucketId();
 
-        DistributedPutAllOperation putAllForBucket = bucketToPutallMap.get(bucketId);;
+        DistributedPutAllOperation putAllForBucket = bucketToPutallMap.get(bucketId);
         if (putAllForBucket == null) {
           // TODO DISTTX: event is never released
           EntryEventImpl event = EntryEventImpl.createPutAllEvent(null, region,
@@ -982,7 +981,7 @@ public class DistTXStateProxyImplOnCoordinator extends DistTXStateProxyImpl {
   public DistributedMember getOwnerForKey(LocalRegion r, KeyInfo key) {
     DistributedMember m = r.getOwnerForKey(key);
     if (m == null) {
-      GemFireCacheImpl cache = GemFireCacheImpl.getExisting("getOwnerForKey");
+      InternalCache cache = GemFireCacheImpl.getExisting("getOwnerForKey");
       m = cache.getDistributedSystem().getDistributedMember();
     }
     return m;

@@ -53,12 +53,10 @@ import org.apache.geode.internal.i18n.LocalizedStrings;
 import org.apache.geode.internal.logging.LogService;
 import org.apache.geode.internal.logging.log4j.LogMarker;
 
-/**
- * 
- */
 public final class DistTXPrecommitMessage extends TXMessage {
 
   private static final Logger logger = LogService.getLogger();
+
   ArrayList<DistTxEntryEvent> secondaryTransactionalOperations;
 
   /** for deserialization */
@@ -76,7 +74,7 @@ public final class DistTXPrecommitMessage extends TXMessage {
 
   @Override
   protected boolean operateOnTx(TXId txId, DistributionManager dm) throws RemoteOperationException {
-    GemFireCacheImpl cache = GemFireCacheImpl.getInstance();
+    InternalCache cache = GemFireCacheImpl.getInstance();
     TXManagerImpl txMgr = cache.getTXMgr();
 
     if (logger.isDebugEnabled()) {
@@ -132,7 +130,7 @@ public final class DistTXPrecommitMessage extends TXMessage {
     }
 
     // Send Response : Send false if conflict
-    DistTxPrecommitResponse finalResponse = new DistTxPrecommitResponse(precommitSuccess,
+    DistTxPreCommitResponse finalResponse = new DistTxPreCommitResponse(precommitSuccess,
         new ArrayList<ArrayList<DistTxThinEntryState>>(entryStateSortedMap.values()));
     DistTXPrecommitReplyMessage.send(getSender(), getProcessorId(), finalResponse,
         getReplySender(dm));
@@ -176,7 +174,7 @@ public final class DistTXPrecommitMessage extends TXMessage {
    * This is the reply to a {@link DistTXPrecommitMessage}.
    */
   public static final class DistTXPrecommitReplyMessage extends ReplyMessage {
-    private transient DistTxPrecommitResponse commitResponse;
+    private transient DistTxPreCommitResponse commitResponse;
 
     /**
      * Empty constructor to conform to DataSerializable interface
@@ -187,7 +185,7 @@ public final class DistTXPrecommitMessage extends TXMessage {
       fromData(in);
     }
 
-    private DistTXPrecommitReplyMessage(int processorId, DistTxPrecommitResponse val) {
+    private DistTXPrecommitReplyMessage(int processorId, DistTxPreCommitResponse val) {
       setProcessorId(processorId);
       this.commitResponse = val;
     }
@@ -209,7 +207,7 @@ public final class DistTXPrecommitMessage extends TXMessage {
      * @param replySender distribution manager used to send the reply
      */
     public static void send(InternalDistributedMember recipient, int processorId,
-        DistTxPrecommitResponse val, ReplySender replySender) throws RemoteOperationException {
+        DistTxPreCommitResponse val, ReplySender replySender) throws RemoteOperationException {
       Assert.assertTrue(recipient != null, "DistTXPhaseOneCommitReplyMessage NULL reply message");
       DistTXPrecommitReplyMessage m = new DistTXPrecommitReplyMessage(processorId, val);
       m.setRecipient(recipient);
@@ -253,18 +251,18 @@ public final class DistTXPrecommitMessage extends TXMessage {
     @Override
     public void fromData(DataInput in) throws IOException, ClassNotFoundException {
       super.fromData(in);
-      this.commitResponse = (DistTxPrecommitResponse) DataSerializer.readObject(in);
+      this.commitResponse = (DistTxPreCommitResponse) DataSerializer.readObject(in);
     }
 
     @Override
     public String toString() {
-      StringBuffer sb = new StringBuffer();
+      StringBuilder sb = new StringBuilder();
       sb.append("DistTXPhaseOneCommitReplyMessage").append("processorid=").append(this.processorId)
           .append(" reply to sender ").append(this.getSender());
       return sb.toString();
     }
 
-    public DistTxPrecommitResponse getCommitResponse() {
+    public DistTxPreCommitResponse getCommitResponse() {
       return commitResponse;
     }
   }
@@ -279,7 +277,7 @@ public final class DistTXPrecommitMessage extends TXMessage {
    */
   public static final class DistTxPrecommitReplyProcessor extends ReplyProcessor21 {
     private HashMap<DistributedMember, DistTXCoordinatorInterface> msgMap;
-    private Map<DistributedMember, DistTxPrecommitResponse> commitResponseMap;
+    private Map<DistributedMember, DistTxPreCommitResponse> commitResponseMap;
     private transient TXId txIdent = null;
 
     public DistTxPrecommitReplyProcessor(TXId txUniqId, DM dm, Set initMembers,
@@ -288,7 +286,7 @@ public final class DistTXPrecommitMessage extends TXMessage {
       this.msgMap = msgMap;
       // [DISTTX] TODO Do we need synchronised map?
       this.commitResponseMap =
-          Collections.synchronizedMap(new HashMap<DistributedMember, DistTxPrecommitResponse>());
+          Collections.synchronizedMap(new HashMap<DistributedMember, DistTxPreCommitResponse>());
       this.txIdent = txUniqId;
     }
 
@@ -340,7 +338,7 @@ public final class DistTXPrecommitMessage extends TXMessage {
             (DistTxPrecommitExceptionCollectingException) this.exception;
         return cce.getCacheClosedMembers();
       } else {
-        return Collections.EMPTY_SET;
+        return Collections.emptySet();
       }
     }
 
@@ -350,11 +348,11 @@ public final class DistTXPrecommitMessage extends TXMessage {
             (DistTxPrecommitExceptionCollectingException) this.exception;
         return cce.getRegionDestroyedMembers(regionFullPath);
       } else {
-        return Collections.EMPTY_SET;
+        return Collections.emptySet();
       }
     }
 
-    public Map<DistributedMember, DistTxPrecommitResponse> getCommitResponseMap() {
+    public Map<DistributedMember, DistTxPreCommitResponse> getCommitResponseMap() {
       return commitResponseMap;
     }
   }
@@ -388,14 +386,12 @@ public final class DistTXPrecommitMessage extends TXMessage {
     /**
      * Determine if the commit processing was incomplete, if so throw a detailed exception
      * indicating the source of the problem
-     * 
-     * @param msgMap
      */
     public void handlePotentialCommitFailure(
         HashMap<DistributedMember, DistTXCoordinatorInterface> msgMap) {
       if (fatalExceptions.size() > 0) {
-        StringBuffer errorMessage = new StringBuffer("Incomplete commit of transaction ").append(id)
-            .append(".  Caused by the following exceptions: ");
+        StringBuilder errorMessage = new StringBuilder("Incomplete commit of transaction ")
+            .append(id).append(".  Caused by the following exceptions: ");
         for (Iterator i = fatalExceptions.entrySet().iterator(); i.hasNext();) {
           Map.Entry me = (Map.Entry) i.next();
           DistributedMember mem = (DistributedMember) me.getKey();
@@ -429,16 +425,13 @@ public final class DistTXPrecommitMessage extends TXMessage {
     public Set getRegionDestroyedMembers(String regionFullPath) {
       Set members = (Set) this.regionExceptions.get(regionFullPath);
       if (members == null) {
-        members = Collections.EMPTY_SET;
+        members = Collections.emptySet();
       }
       return members;
     }
 
     /**
      * Protected by (this)
-     * 
-     * @param member
-     * @param exceptions
      */
     public void addExceptionsFromMember(InternalDistributedMember member, Set exceptions) {
       for (Iterator iter = exceptions.iterator(); iter.hasNext();) {
@@ -465,14 +458,14 @@ public final class DistTXPrecommitMessage extends TXMessage {
     }
   }
 
-  public static final class DistTxPrecommitResponse implements DataSerializableFixedID {
+  public static final class DistTxPreCommitResponse implements DataSerializableFixedID {
     private transient Boolean commitState;
     private transient ArrayList<ArrayList<DistTxThinEntryState>> distTxEventList;
 
     // Default constructor for serialisation
-    public DistTxPrecommitResponse() {}
+    public DistTxPreCommitResponse() {}
 
-    public DistTxPrecommitResponse(boolean precommitSuccess,
+    public DistTxPreCommitResponse(boolean precommitSuccess,
         ArrayList<ArrayList<DistTxThinEntryState>> eventList) {
       this.commitState = precommitSuccess;
       this.distTxEventList = eventList;
